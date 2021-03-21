@@ -12,8 +12,8 @@ Pipeline:
 - Only use counties and states that are in the Covid and health data sets
 
 Time dim:
-- Create from Covid-19 data as a start, use column names as key, extract year/month/week/day/weekday from there
-- Fill in missing days from weather data
+- Create using pandas, start at 1st of January 2020, go in one-day intervals until 31st of December 2020
+
 
 County dim:
 - Create county dimension table from Covid-19 data as a start
