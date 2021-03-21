@@ -63,11 +63,11 @@ def process_health_data():
     health_df = health_df.drop(health_df.index[0])
     
     # Select relevant columns
-    health_columns = ["5-digit FIPS Code", "Name", "State Abbreviation", "Poor or fair health raw value", "Adult smoking raw value", "Adult obesity raw value", "Physical inactivity raw value", "Excessive drinking raw value", "Uninsured raw value", "Primary care physicians raw value", "Unemployment raw value", "Air pollution - particulate matter raw value", "Severe housing problems raw value", "Percentage of households with overcrowding", "Food insecurity raw value", "Residential segregation - non-White/White raw value", "% 65 and older raw value", "% Rural raw value"]
+    health_columns = ["5-digit FIPS Code", "Name", "State Abbreviation", "Population raw value", "Poor or fair health raw value", "Adult smoking raw value", "Adult obesity raw value", "Physical inactivity raw value", "Excessive drinking raw value", "Uninsured raw value", "Primary care physicians raw value", "Unemployment raw value", "Air pollution - particulate matter raw value", "Severe housing problems raw value", "Percentage of households with overcrowding", "Food insecurity raw value", "Residential segregation - non-White/White raw value", "% 65 and older raw value", "% Rural raw value"]
     health_df = health_df[health_columns]
     
     # Rename columns for ease of use
-    new_column_names = ["fips", "county_name", "state", "poor_health", "smokers", "obesity", "physical_inactivity", "excessive_drinking", "uninsured", "physicians", "unemployment", "air_pollution", "housing_problems", "household_overcrowding", "food_insecurity", "residential_segregation", "over_sixtyfives", "rural"]
+    new_column_names = ["fips", "county_name", "state", "population", "poor_health", "smokers", "obesity", "physical_inactivity", "excessive_drinking", "uninsured", "physicians", "unemployment", "air_pollution", "housing_problems", "household_overcrowding", "food_insecurity", "residential_segregation", "over_sixtyfives", "rural"]
 health_df = health_df.rename(columns=dict(zip(health_columns, new_column_names)))
 
     # Force health data columns to numeric format. The first few columns (fips, county and state) don't need to be numeric.
@@ -146,3 +146,5 @@ def process_all_weather_data():
     wind_df = process_weather_data("data/weather/wind_US.csv")
     humidity_df = process_weather_data("data/weather/humidity_US.csv")
     precipitation_df = process_weather_data("data/weather/precip_US.csv")
+    
+    return t_min_df, t_max_df, cloud_df, wind_df, humidity_df, precipitation_df
