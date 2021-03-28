@@ -64,26 +64,30 @@ CREATE TABLE Dim_State
 
 CREATE TABLE Fact_CountyTimeSeries
 (
- county_id    varchar(5) NOT NULL,
- "date"       timestamp NOT NULL,
- covid_cases  integer NOT NULL,
- covid_deaths integer NOT NULL,
- min_temp     decimal NOT NULL,
- max_temp     decimal NOT NULL,
- cloud_cover  decimal NOT NULL,
- wind         decimal NOT NULL,
- CONSTRAINT fact_countyTimeSeries_pkey PRIMARY KEY ( county_id, "date" ),
- CONSTRAINT fact_countyTimeSeries_county_fkey FOREIGN KEY ( county_id ) REFERENCES Dim_County ( county_id ),
- CONSTRAINT fact_countyTimeSeries_date_pkey FOREIGN KEY ( "date" ) REFERENCES Dim_Date ( "date" )
+ county_id         varchar(5) NOT NULL,
+ "date"            timestamp NOT NULL,
+ covid_case_total  integer NOT NULL,
+ covid_case_delta  integer NOT NULL,
+ covid_death_total integer NOT NULL,
+ covid_death_delta integer NOT NULL,
+ min_temp          decimal NOT NULL,
+ max_temp          decimal NOT NULL,
+ cloud_cover       decimal NOT NULL,
+ wind              decimal NOT NULL,
+ CONSTRAINT PK_Fact_Customer_Orders PRIMARY KEY ( county_id, "date" ),
+ CONSTRAINT FK_Fact_Customer_Orders_CustomerId FOREIGN KEY ( county_id ) REFERENCES Dim_County ( county_id ),
+ CONSTRAINT FK_Fact_Customer_Orders_DateId FOREIGN KEY ( "date" ) REFERENCES Dim_Date ( "date" )
 );
 
 CREATE TABLE Fact_StateTimeSeries
 (
- "date"       timestamp NOT NULL,
- state_id     varchar(3) NOT NULL,
- covid_cases  integer NOT NULL,
- covid_deaths integer NOT NULL,
- CONSTRAINT fact_stateTimeSeries_pkey PRIMARY KEY ( "date", state_id ),
- CONSTRAINT fact_stateTimeSeries_state_fkey FOREIGN KEY ( state_id ) REFERENCES Dim_State ( state_id ),
- CONSTRAINT fact_stateTimeSeries_date_fkey FOREIGN KEY ( "date" ) REFERENCES Dim_Date ( "date" )
+ "date"            timestamp NOT NULL,
+ state_id          varchar(3) NOT NULL,
+ covid_case_total  integer NOT NULL,
+ covid_case_delta  integer NOT NULL,
+ covid_death_total integer NOT NULL,
+ covid_death_delta integer NOT NULL,
+ CONSTRAINT PK_Fact_Customer_Orders_clone PRIMARY KEY ( "date", state_id ),
+ CONSTRAINT FK_108 FOREIGN KEY ( state_id ) REFERENCES Dim_State ( state_id ),
+ CONSTRAINT FK_Fact_Customer_Orders_DateId_clone FOREIGN KEY ( "date" ) REFERENCES Dim_Date ( "date" )
 );
