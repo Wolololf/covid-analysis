@@ -1,14 +1,5 @@
 TODO:
 
-Cleaning:
-- Drop all rows with final date value of 0, these rows have no data
-
-Model/ETL:
-- Add case_delta and death_delta columns to state and county fact tables
-- Rebuild model image
-- Update creation SQL
-- Update column description and justification
-
 Stretch:
 - Election data for county dimension table
 - Mobility data over time, as part of county facts table (since it's a time series)
