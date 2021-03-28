@@ -20,10 +20,19 @@ def clean_covid_data(inputPath):
     df = df.rename(columns=dict(zip(county_columns, new_column_names)))
     
     # Drop prisons
-    df = df.drop(covid_df.index[[1304, 1336]])
+    df = df.drop([1304, 1336])
     
-    # Drop counties below 100 and above 60000
+    # Drop fake counties (created for accounting purposes?)
+    df = df.drop([1267, 2954, 2959, 2978, 2979, 2982, 2990])
+    
+    # Drop Kansas City since it's an aggregate of multiple counties, but doesn't have a FIPS code itself
+    df = df.drop([1591])
+    
+    # Drop counties below 100 and above 60000 (overseas territories, cruise ships, out-of-state and unassigned counts)
     df = df.drop(df[(df["fips"] < 100) | (df["fips"] > 60000)].index)
+    
+    # Drop counties without any data
+    df.drop(df[((df["state"] == "Utah") | (df["state"] == "Massachusetts")) & (df["2/27/21"] == 0)].index)
     
     # Fix the FIPS codes to 5 digits, as a string
     df.loc[df["fips"].notna(), "fips"] = df.loc[df["fips"].notna(), "fips"].astype(int).astype(str).str.pad(width=5, side='left', fillchar='0')
