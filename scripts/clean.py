@@ -1,13 +1,15 @@
 import pandas as pd
 
-def clean_covid_data(inputPath):
+def clean_covid_data(spark, inputPath):
     '''
     Comment
 
     Parameters:
-    param_name (param_type): Description
+    spark (SparkContext): Spark context to run operations on
+    inputPath (string): Path to the covid data file
     '''
     
+    # TODO: Redo with spark!
     df = pd.read_csv(inputPath)
     
     # Select relevant columns
@@ -43,14 +45,15 @@ def clean_covid_data(inputPath):
     
     return df
 
-def clean_health_data():
+def clean_health_data(spark):
     '''
     Comment
 
     Parameters:
-    param_name (param_type): Description
+    spark (SparkContext): Spark context to run operations on
     '''
     
+    # TODO: Redo with spark!
     health_df = pd.read_csv("data/health_data.csv")
     
     # Drop first row since it's just another set of column names
@@ -62,7 +65,7 @@ def clean_health_data():
     
     # Rename columns for ease of use
     new_column_names = ["fips", "county_name", "state", "population", "poor_health", "smokers", "obesity", "physical_inactivity", "excessive_drinking", "uninsured", "physicians", "unemployment", "air_pollution", "housing_problems", "household_overcrowding", "food_insecurity", "residential_segregation", "over_sixtyfives", "rural"]
-health_df = health_df.rename(columns=dict(zip(health_columns, new_column_names)))
+    health_df = health_df.rename(columns=dict(zip(health_columns, new_column_names)))
 
     # Force health data columns to numeric format. The first few columns (fips, county and state) don't need to be numeric.
     numeric_columns = new_column_names[3:]
@@ -71,14 +74,15 @@ health_df = health_df.rename(columns=dict(zip(health_columns, new_column_names))
     return health_df
 
 
-def clean_area_data():
+def clean_area_data(spark):
     '''
     Comment
 
     Parameters:
-    param_name (param_type): Description
+    spark (SparkContext): Spark context to run operations on
     '''
     
+    # TODO: Redo with spark!
     raw_area_df = pd.read_json("data/us_county_area.json")
     
     county_area_dict = {}
@@ -89,14 +93,16 @@ def clean_area_data():
     # Potentially drop FIPS over 60000? Doesn't really matter, though, we'll just never use these if they don't exist in the Covid-19 data set.
 
 
-def clean_weather_data(inputPath):
+def clean_weather_data(spark, inputPath):
     '''
     Comment
 
     Parameters:
-    param_name (param_type): Description
+    spark (SparkContext): Spark context to run operations on
+    inputPath (string): Path to the weather data file
     '''
     
+    # TODO: Redo with spark!
     df = pd.read_csv(inputPath)
     
     # Select relevant columns
@@ -124,19 +130,17 @@ def clean_weather_data(inputPath):
     return df
 
 
-def clean_all_weather_data():
+def clean_all_weather_data(spark):
     '''
-    Comment
+    Read, clean and return all weather data
 
-    Parameters:
-    param_name (param_type): Description
+    Parameters::
+    spark (SparkContext): Spark context to run operations on
     '''
     
-    t_min_df = clean_weather_data("data/weather/tMin_US.csv")
-    t_max_df = clean_weather_data("data/weather/tMax_US.csv")
-    cloud_df = clean_weather_data("data/weather/cloud_US.csv")
-    wind_df = clean_weather_data("data/weather/wind_US.csv")
-    humidity_df = clean_weather_data("data/weather/humidity_US.csv")
-    precipitation_df = clean_weather_data("data/weather/precip_US.csv")
+    t_min_df = clean_weather_data(spark, "data/weather/tMin_US.csv")
+    t_max_df = clean_weather_data(spark, "data/weather/tMax_US.csv")
+    cloud_df = clean_weather_data(spark, "data/weather/cloud_US.csv")
+    wind_df = clean_weather_data(spark, "data/weather/wind_US.csv")
     
-    return t_min_df, t_max_df, cloud_df, wind_df, humidity_df, precipitation_df
+    return t_min_df, t_max_df, cloud_df, wind_df

@@ -1,36 +1,19 @@
-import configparser
-from pyspark.sql import SparkSession
 import pandas as pd
 from pyspark.sql.functions import col, monotonically_increasing_id
 from pyspark.sql.functions import year, month, dayofmonth, hour, weekofyear, date_format, from_unixtime
 from pyspark.sql.types import *
 
-from clean import clean_covid_data
+from clean import *
 
 # For now, just locally, later on maybe write this to S3 instead
 output_path = "output/"
 
-def create_spark_session():
-    """
-    Creates the spark session
-    
-    Returns:
-    Newly created spark session
-    """
-
-    config = configparser.ConfigParser()
-    config.read('dl.cfg')
-
-    spark = SparkSession \
-        .builder \
-        .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.7.5") \
-        .getOrCreate()
-
-    return spark
-
-def process_time_data():
+def process_time_data(spark):
     '''
     Creates date data for each day in 2020, stores it in parquet and then returns the Spark dataframe for further use
+    
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
     
     Returns:
     Spark dataframe for date
@@ -58,15 +41,15 @@ def process_time_data():
     
     return time_df
 
-def process_covid_data():
+def process_covid_data(spark):
     '''
     Comment
 
     Parameters:
-    param_name (param_type): Description
+    spark (SparkContext): Spark context to run operations on
     '''
     
-    covid_cases_df = clean_covid_data("data/covid_cases_US.csv")
+    covid_cases_df = clean_covid_data(spark, "data/covid_cases_US.csv")
     covid_deaths_df = clean_covid_data("data/covid_deaths_US.csv")
     
     # Create one dataframe for counties, with fips, state and county name
