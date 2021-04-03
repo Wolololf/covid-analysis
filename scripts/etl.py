@@ -3,12 +3,13 @@ from pyspark.sql.functions import col, monotonically_increasing_id
 from pyspark.sql.functions import year, month, dayofmonth, hour, weekofyear, date_format, from_unixtime
 from pyspark.sql.types import *
 
+from setup import *
 from clean import *
 
 # For now, just locally, later on maybe write this to S3 instead
 output_path = "output/"
 
-def process_time_data(spark):
+def create_time_dimension_table(spark):
     '''
     Creates date data for each day in 2020, stores it in parquet and then returns the Spark dataframe for further use
     
@@ -41,7 +42,8 @@ def process_time_data(spark):
     
     return time_df
 
-def process_covid_data(spark):
+
+def load_covid_data(spark):
     '''
     Comment
 
@@ -49,9 +51,116 @@ def process_covid_data(spark):
     spark (SparkContext): Spark context to run operations on
     '''
     
-    covid_cases_df = clean_covid_data(spark, "data/covid_cases_US.csv")
-    covid_deaths_df = clean_covid_data("data/covid_deaths_US.csv")
+    covid_cases_df = spark.read.load("data/covid_cases_US.csv", format="csv", sep=",", inferSchema="true", header="true")
+    covid_deaths_df = spark.read.load("data/covid_deaths_US.csv", format="csv", sep=",", inferSchema="true", header="true")
     
-    # Create one dataframe for counties, with fips, state and county name
-    # Create another dataframe with fips as the first column, date as the second, and then cases and deaths as third and fourth columns
-    # Might be a better way to do this in spark using temporary database views?
+    return covid_cases_df, covid_deaths_df
+
+
+def load_health_data(spark):
+    '''
+    Comment
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    '''
+    
+    health_df = spark.read.load("data/health_data.csv", format="csv", sep=",", inferSchema="true", header="true")
+    
+    return health_df
+
+
+def load_area_data(spark):
+    '''
+    Comment
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    '''
+    
+    area_df = spark.read.load("data/us_county_area.csv", format="csv", sep=",", inferSchema="true", header="true")
+    
+    return area_df
+
+
+def load_weather_data(spark):
+    '''
+    Comment
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    '''
+    
+    tMin_df = spark.read.load("data/tMin_US.csv", format="csv", sep=",", inferSchema="true", header="true")
+    tMax_df = spark.read.load("data/tMax_US.csv", format="csv", sep=",", inferSchema="true", header="true")
+    cloud_df = spark.read.load("data/cloud_US.csv", format="csv", sep=",", inferSchema="true", header="true")
+    wind_df = spark.read.load("data/wind_US.csv", format="csv", sep=",", inferSchema="true", header="true")
+    
+    return tMin_df, tMax_df, cloud_df, wind_df
+    
+
+def create_county_dimension_table(spark, covid_cases_df, health_df):
+    '''
+    Comment
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    '''
+    
+    area_df = load_area_data(spark)
+    
+
+def create_state_dimension_table(spark, county_dim_df, covid_cases_df, health_df):
+    '''
+    Comment
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    '''
+    
+
+def create_county_facts_table(spark, covid_cases_df, covid_deaths_df):
+    '''
+    Comment
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    '''
+    
+    tMin_df, tMax_df, cloud_df, wind_df = load_weather_data(spark)
+
+
+def create_state_facts_table(spark, covid_cases_df, covid_deaths_df):
+    '''
+    Comment
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    '''
+
+
+def main():
+    '''
+    Runs the ETL pipeline.
+    - 
+    '''
+    
+    spark = create_spark_session()
+    
+    covid_cases_df, covid_deaths_df = load_covid_data(spark)
+    health_df = load_health_data(spark)
+    area_df = load_area_data(spark)
+    
+    create_time_dimension_table(spark)
+    
+    create_county_dimension_table(spark)
+    
+    create_state_dimension_table(spark)
+    
+    create_county_facts_table(spark)
+    
+    create_state_facts_table(spark)
+
+
+if __name__ == "__main__":
+    main()

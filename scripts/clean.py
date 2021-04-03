@@ -1,15 +1,14 @@
 import pandas as pd
 
-def clean_covid_data(spark, inputPath):
+def clean_covid_data(inputPath, outputPath):
     '''
-    Comment
+    Clean Covid-19 data and write the cleaned data out to a new .csv file including a schema file.
 
     Parameters:
-    spark (SparkContext): Spark context to run operations on
-    inputPath (string): Path to the covid data file
+    inputPath (string): Path to the covid data input file
+    outputPath (string): Path to the covid data output file
     '''
     
-    # TODO: Redo with spark!
     df = pd.read_csv(inputPath)
     
     # Select relevant columns
@@ -43,18 +42,19 @@ def clean_covid_data(spark, inputPath):
     numeric_columns = df.columns[3:]
     df[numeric_columns] = df[numeric_columns].astype(int)
     
-    return df
+    df.to_csv(outputPath, index=False)
 
-def clean_health_data(spark):
+    
+def clean_health_data(inputPath, outputPath):
     '''
-    Comment
+    Cleans and writes back to .csv the health data
 
     Parameters:
-    spark (SparkContext): Spark context to run operations on
+    inputPath (string): Path to the health data input file
+    outputPath (string): Path to the health data output file
     '''
     
-    # TODO: Redo with spark!
-    health_df = pd.read_csv("data/health_data.csv")
+    health_df = pd.read_csv(inputPath) # data/health_data.csv
     
     # Drop first row since it's just another set of column names
     health_df = health_df.drop(health_df.index[0])
@@ -71,38 +71,37 @@ def clean_health_data(spark):
     numeric_columns = new_column_names[3:]
     health_df[numeric_columns] = health_df[numeric_columns].apply(pd.to_numeric)
     
-    return health_df
+    health_df.to_csv(outputPath, index=False)
 
 
-def clean_area_data(spark):
+def clean_area_data(inputPath, outputPath):
     '''
-    Comment
+    Cleans and writes back to .csv the area data
 
     Parameters:
-    spark (SparkContext): Spark context to run operations on
+    inputPath (string): Path to the health data input file
+    outputPath (string): Path to the health data output file
     '''
     
-    # TODO: Redo with spark!
-    raw_area_df = pd.read_json("data/us_county_area.json")
+    raw_area_df = pd.read_json(inputPath) # data/us_county_area.json
     
     county_area_dict = {}
     county_area_dict = {county['properties']['GEO_ID'][-5:]: county['properties']['CENSUSAREA'] for county in raw_area_df['features']}
 
     county_area_df = pd.DataFrame(county_area_dict.items(), columns=["fips", "area"])
     
-    # Potentially drop FIPS over 60000? Doesn't really matter, though, we'll just never use these if they don't exist in the Covid-19 data set.
+    county_area_df.to_csv(outputPath, index=False)
 
 
-def clean_weather_data(spark, inputPath):
+def clean_weather_data(inputPath, outputPath):
     '''
-    Comment
+    Cleans and writes back to .csv the weather data
 
     Parameters:
-    spark (SparkContext): Spark context to run operations on
-    inputPath (string): Path to the weather data file
+    inputPath (string): Path to the weather data input file
+    outputPath (string): Path to the weather data output file
     '''
     
-    # TODO: Redo with spark!
     df = pd.read_csv(inputPath)
     
     # Select relevant columns
@@ -127,20 +126,34 @@ def clean_weather_data(spark, inputPath):
     numeric_columns = df.columns[3:]
     df[numeric_columns] = df[numeric_columns].apply(pd.to_numeric)
     
-    return df
+    df.to_csv(outputPath, index=False)
 
-
-def clean_all_weather_data(spark):
+    
+def clean_all_weather_data():
     '''
-    Read, clean and return all weather data
-
-    Parameters::
-    spark (SparkContext): Spark context to run operations on
+    Read, clean and write back to .csv all weather data
     '''
     
-    t_min_df = clean_weather_data(spark, "data/weather/tMin_US.csv")
-    t_max_df = clean_weather_data(spark, "data/weather/tMax_US.csv")
-    cloud_df = clean_weather_data(spark, "data/weather/cloud_US.csv")
-    wind_df = clean_weather_data(spark, "data/weather/wind_US.csv")
+    clean_weather_data("raw_data/weather/tMin_US.csv", "data/tMin_US.csv")
+    clean_weather_data("raw_data/weather/tMax_US.csv", "data/tMax_US.csv")
+    clean_weather_data("raw_data/weather/cloud_US.csv", "data/cloud_US.csv")
+    clean_weather_data("raw_data/weather/wind_US.csv", "data/wind_US.csv")
     
-    return t_min_df, t_max_df, cloud_df, wind_df
+
+def main():
+    '''
+    Cleans all input data
+    '''
+    
+    clean_covid_data("raw_data/covid_cases_US.csv", "data/covid_cases_US.csv")
+    clean_covid_data("raw_data/covid_deaths_US.csv", "data/covid_deaths_US.csv")
+    
+    clean_health_data("raw_data/health_data.csv", "data/health_data.csv")
+    
+    clean_area_data("raw_data/us_county_area.json", "data/us_county_area.csv")
+    
+    clean_all_weather_data()
+
+
+if __name__ == "__main__":
+    main()

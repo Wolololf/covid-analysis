@@ -1,5 +1,9 @@
 TODO:
 
+Clean:
+- Store cleaned data with schema: https://stackoverflow.com/questions/56707401/save-schema-of-dataframe-in-s3-location
+- Inner-join county tables on FIPS code: https://sparkbyexamples.com/spark/spark-sql-dataframe-join/#sql-inner-join
+
 Stretch:
 - Election data for county dimension table
 - Mobility data over time, as part of county facts table (since it's a time series)
