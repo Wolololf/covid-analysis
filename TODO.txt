@@ -1,8 +1,13 @@
 TODO:
 
-Clean:
-- Store cleaned data with schema: https://stackoverflow.com/questions/56707401/save-schema-of-dataframe-in-s3-location
-- Inner-join county tables on FIPS code: https://sparkbyexamples.com/spark/spark-sql-dataframe-join/#sql-inner-join
+S3: Upload final ETL output to S3 instead of local
+
+Redshift: Stage data from S3 bucket to Redshift
+- Create table statements
+- Delete table statements
+- Copy statements
+- Copy Infrastructure-As-Code setup from the Data Warehouse Project
+- Copy connection and shutdown code from the same project
 
 Stretch:
 - Election data for county dimension table

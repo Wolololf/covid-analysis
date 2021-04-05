@@ -1,8 +1,8 @@
 CREATE TABLE Dim_County
 (
- county_id               varchar(5) NOT NULL,
+ fips                    integer NOT NULL,
  county_name             varchar(50) NOT NULL,
- state_id                varchar(3) NOT NULL,
+ state                   varchar(100) NOT NULL,
  population              integer NOT NULL,
  area                    decimal NOT NULL,
  population_density      decimal NOT NULL,
@@ -21,26 +21,26 @@ CREATE TABLE Dim_County
  residential_segregation decimal,
  over_sixtyfives         decimal NOT NULL,
  rural                   decimal,
- CONSTRAINT county_pkey PRIMARY KEY ( county_id )
+ CONSTRAINT county_pkey PRIMARY KEY ( fips )
 );
 
-CREATE TABLE Dim_Date
+CREATE TABLE Dim_Time
 (
- "date"      timestamp NOT NULL,
+ "timestamp" integer NOT NULL,
  day         integer NOT NULL,
  week        integer NOT NULL,
  month       integer NOT NULL,
  "year"      integer NOT NULL,
  day_of_week integer NOT NULL,
- CONSTRAINT date_pkey PRIMARY KEY ( "date" )
+ CONSTRAINT time_pkey PRIMARY KEY ( "timestamp" )
 )
-DISTSTYLE KEY DISTKEY ( "date" )
+DISTSTYLE KEY DISTKEY ( "timestamp" )
 INTERLEAVED SORTKEY ( "year", month, day );
 
 CREATE TABLE Dim_State
 (
- state_id                varchar(3) NOT NULL,
- state_name              varchar(50) NOT NULL,
+ state                   varchar(50) NOT NULL,
+ abbreviation            varchar(3) NOT NULL,
  population              integer NOT NULL,
  area                    decimal NOT NULL,
  population_density      decimal NOT NULL,
@@ -59,13 +59,13 @@ CREATE TABLE Dim_State
  residential_segregation decimal NOT NULL,
  over_sixtyfives         decimal NOT NULL,
  rural                   decimal NOT NULL,
- CONSTRAINT state_pkey PRIMARY KEY ( state_id )
+ CONSTRAINT state_pkey PRIMARY KEY ( state )
 );
 
-CREATE TABLE Fact_CountyTimeSeries
+CREATE TABLE Fact_County
 (
+ "timestamp"       integer NOT NULL,
  county_id         varchar(5) NOT NULL,
- "date"            timestamp NOT NULL,
  covid_case_total  integer NOT NULL,
  covid_case_delta  integer NOT NULL,
  covid_death_total integer NOT NULL,
@@ -74,20 +74,20 @@ CREATE TABLE Fact_CountyTimeSeries
  max_temp          decimal NOT NULL,
  cloud_cover       decimal NOT NULL,
  wind              decimal NOT NULL,
- CONSTRAINT PK_Fact_Customer_Orders PRIMARY KEY ( county_id, "date" ),
- CONSTRAINT FK_Fact_Customer_Orders_CustomerId FOREIGN KEY ( county_id ) REFERENCES Dim_County ( county_id ),
- CONSTRAINT FK_Fact_Customer_Orders_DateId FOREIGN KEY ( "date" ) REFERENCES Dim_Date ( "date" )
+ CONSTRAINT PK_Fact_County PRIMARY KEY ( "timestamp", fips ),
+ CONSTRAINT FK_Fact_County_TimeId FOREIGN KEY ( "timestamp" ) REFERENCES Dim_Time ( "timestamp" ),
+ CONSTRAINT FK_Fact_County_CountyId FOREIGN KEY ( fips ) REFERENCES Dim_County ( fips )
 );
 
-CREATE TABLE Fact_StateTimeSeries
+CREATE TABLE Fact_State
 (
- "date"            timestamp NOT NULL,
- state_id          varchar(3) NOT NULL,
+ "timestamp"       integer NOT NULL,
+ state             varchar(100) NOT NULL,
  covid_case_total  integer NOT NULL,
  covid_case_delta  integer NOT NULL,
  covid_death_total integer NOT NULL,
  covid_death_delta integer NOT NULL,
- CONSTRAINT PK_Fact_Customer_Orders_clone PRIMARY KEY ( "date", state_id ),
- CONSTRAINT FK_108 FOREIGN KEY ( state_id ) REFERENCES Dim_State ( state_id ),
- CONSTRAINT FK_Fact_Customer_Orders_DateId_clone FOREIGN KEY ( "date" ) REFERENCES Dim_Date ( "date" )
+ CONSTRAINT PK_Fact_State PRIMARY KEY ( "timestamp", state ),
+ CONSTRAINT FK_Fact_State_TimeId FOREIGN KEY ( "timestamp" ) REFERENCES Dim_Time ( "timestamp" ),
+ CONSTRAINT FK_Fact_State_StateId FOREIGN KEY ( state ) REFERENCES Dim_State ( state )
 );

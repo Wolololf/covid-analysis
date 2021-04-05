@@ -155,6 +155,8 @@ def create_state_dimension_table(spark, health_df, county_dim_df):
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    health_df (DataFrame): Health data from a cleaning step or loaded from disc, provides all necessary data apart from area
+    county_dim_df (DataFrame): County dimension data from a previous ETL step or loaded from disc, used to extract and accumulate area data
     '''
     
     state_dim_df = health_df.where((health_df['fips'] != 0) & (health_df['fips'] % 1000 == 0)).drop('fips').withColumnRenamed('county_name', 'state_name')
@@ -185,24 +187,197 @@ def load_state_dimension_table(spark):
     return state_dim_df
     
 
-def create_county_facts_table(spark, covid_cases_df, covid_deaths_df):
+def create_covid_time_series(spark, input_df, column_offset, total_column_name, delta_column_name, include_state):
     '''
     Comment
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    input_df (DataFrame): Source Covid-19 data, either from a previous cleaning step, or loaded from disc
+    total_column_name (String): Column name for the total value (case or death) in each row
+    delta_column_name (String): Column name for the delta value (case or death) in each row compared to the previous day
+    include_state (Boolean): Do we want to include the state column in this dataframe?
+    '''
+    
+    unix_time = pd.Timestamp("1970-01-01")
+    second = pd.Timedelta('1s')
+    
+    date_list = [(pd.to_datetime(c) - unix_time) // second for c in input_df.columns[column_offset:]]
+
+    time_data_columns = input_df.columns[column_offset:]
+    time_data_columns.insert(0, 'fips')
+        
+    if include_state:
+        time_data_columns.insert(1, 'state')
+
+    time_series = []
+
+    def extract_county_data_including_state(row):
+        fips = time_data_columns[0]
+        state = time_data_columns[1]
+        for i in range(2, len(time_data_columns)):
+            time_series.append((row[fips], row[state], date_list[i - 2], row[time_data_columns[i]]))
+
+    def extract_county_data_excluding_state(row):
+        fips = time_data_columns[0]
+        for i in range(1, len(time_data_columns)):
+            time_series.append((row[fips], row[state], date_list[i - 1], row[time_data_columns[i]]))
+
+    
+    if include_state:
+        for row in input_df.collect():
+            extract_county_data_including_state(row)
+    else:
+        for row in input_df.collect():
+            extract_county_data_excluding_state(row)
+
+    time_series_columns = ["fips", "timestamp", total_column_name]
+
+    output_df = spark.createDataFrame(time_series, time_series_columns)
+
+    windowSpec = Window \
+        .partitionBy(county_deaths_df['fips']) \
+        .orderBy(county_deaths_df['timestamp'].asc())
+
+    output_df = output_df.withColumn('lag', F.lag(output_df[total_column_name], 1).over(windowSpec))
+    output_df = output_df.withColumn('lead', F.lead(output_df[total_column_name], 1).over(windowSpec))
+
+    # Populate deltas
+    output_df = output_df.withColumn(delta_column_name, \
+        F.when(output_df['lag'].isNull(), 0) \
+        .otherwise(output_df[total_column_name] - output_df['lag']))
+
+    output_df = output_df.withColumn('next_delta', F.lead(output_df[delta_column_name], 1).over(windowSpec))
+
+    # Fix overreporting
+    output_df = output_df.withColumn(total_column_name, \
+        F.when((output_df['next_delta'] >= 0) | (output_df['lag'].isNull() | (output_df['lead'].isNull())), output_df[total_column_name]) \
+        .otherwise(F.ceil((output_df['lead'] + output_df['lag']) / 2)))
+
+    # Recalculate deltas
+    output_df = output_df.withColumn('lag', F.lag(output_df[total_column_name], 1).over(windowSpec))
+    output_df = output_df.withColumn(delta_column_name, \
+        F.when(output_df['lag'].isNull(), 0) \
+        .otherwise(output_df[total_column_name] - output_df['lag']))
+
+    output_df = output_df.drop('lag').drop('lead').drop('next_delta')
+    
+    return output_df
+
+
+def transform_weather_data(spark, input_df, column_name):
+    '''
+    Comment
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    input_df (DataFrame): Source weather data, either from a previous cleaning step, or loaded from disc
+    column_name (String): Column name under which the weather data will appear
+    '''
+    
+    unix_time = pd.Timestamp("1970-01-01")
+    second = pd.Timedelta('1s')
+    
+    date_list = [(pd.to_datetime(c) - unix_time) // second for c in input_df.columns[5:]]
+
+    time_data_columns = input_df.columns[5:]
+    time_data_columns.insert(0, 'fips')
+
+    time_series = []
+
+    def extract_weather_data(row):
+        fips = time_data_columns[0]
+        for i in range(1, len(time_data_columns)):
+            time_series.append((row[fips], date_list[i - 1], float(row[time_data_columns[i]])))
+
+    for row in input_df.collect():
+        extract_weather_data(row)
+
+    time_series_columns = ["fips", "timestamp", column_name]
+
+    output_df = spark.createDataFrame(time_series, time_series_columns)
+    
+    return output_df
+    
+    
+def create_county_facts_table(spark, covid_cases_df, covid_deaths_df):
+    '''
+    Create the county facts table from Covid-19 case/death data and weather data
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    covid_cases_df (DataFrame): Covid-19 case data
+    covid_deaths_df (DataFrame): Covid-19 death data
+    '''
+    
+    cases_df = create_covid_time_series(spark, covid_cases_df, 5, "covid_case_total", "covid_case_delta", True)
+    deaths_df = create_covid_time_series(spark, covid_deaths_df, 6, "covid_death_total", "covid_death_delta", False)
+    
+    facts_df = cases_df.join(deaths_df, on=["fips", "timestamp"], how="left")
+    
+    tMin_df, tMax_df, cloud_df, wind_df = load_weather_data(spark)
+    
+    transformed_tMin_df = transform_weather_data(tMin_df, "t_min")
+    facts_df = facts_df.join(transformed_tMin_df, on=["fips", "timestamp"], how="left")
+    
+    transformed_tMax_df = transform_weather_data(tMax_df, "t_max")
+    facts_df = facts_df.join(transformed_tMax_df, on=["fips", "timestamp"], how="left")
+    
+    transformed_cloud_df = transform_weather_data(cloud_df, "cloud")
+    facts_df = facts_df.join(transformed_cloud_df, on=["fips", "timestamp"], how="left")
+    
+    transformed_wind_df = transform_weather_data(wind_df, "wind")
+    facts_df = facts_df.join(transformed_wind_df, on=["fips", "timestamp"], how="left")
+    
+    county_facts_df.write.partitionBy('fips').mode('overwrite').parquet(output_path + "county_facts.parquet")
+    
+    return facts_df
+    
+
+def load_county_facts_table(spark):
+    '''
+    Load county facts table from parquet
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
     '''
     
-    tMin_df, tMax_df, cloud_df, wind_df = load_weather_data(spark)
+    county_facts_df = spark.read.option("basePath", output_path + "county_facts.parquet").parquet(output_path + "county_facts.parquet")
+    
+    return county_facts_df
 
 
-def create_state_facts_table(spark, covid_cases_df, covid_deaths_df):
+def create_state_facts_table(spark, county_facts_df):
     '''
     Comment
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    county_facts_df (DataFrame): County facts table that was created in a previous step (or loaded from disc)
     '''
+    
+    county_facts_df_reduced = county_facts_df[['state', 'timestamp', 'covid_case_total', 'covid_case_delta', 'covid_death_total', 'covid_death_delta']]
+    
+    state_facts_df = county_facts_df_reduced.groupBy('state', 'timestamp').agg( \
+        F.sum('covid_case_total').alias('covid_case_total'), \
+        F.sum('covid_case_delta').alias('covid_case_delta'), \
+        F.sum('covid_death_total').alias('covid_death_total'), \
+        F.sum('covid_death_delta').alias('covid_death_delta'))
+    
+    state_facts_df.write.partitionBy('state').mode('overwrite').parquet(output_path + "state_facts.parquet")
+    
+
+def load_state_facts_table(spark):
+    '''
+    Load state facts table from parquet
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    '''
+    
+    state_facts_df = spark.read.option("basePath", output_path + "state_facts.parquet").parquet(output_path + "state_facts.parquet")
+    
+    return state_facts_df
 
 
 def main():
