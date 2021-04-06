@@ -17,11 +17,20 @@ def create_time_dimension_table(spark):
     spark (SparkContext): Spark context to run operations on
     
     Returns:
-    Spark dataframe for date
+    time_df (Dataframe): Spark dataframe representing the time dimension table
     '''
     
-    time_df_pd = pd.DataFrame({'date':pd.date_range('2020-01-01', '2020-12-31')})
-    time_df = spark.createDataFrame(time_df_pd)
+    covid_cases_df = load_covid_case_data(spark)
+    
+    unix_time = pd.Timestamp("1970-01-01")
+    second = pd.Timedelta('1s')
+
+    date_list = [((pd.to_datetime(c) - unix_time) // second, ) for c in covid_cases_df.columns[5:]]
+    
+    time_columns = ['timestamp']
+    time_df = spark.createDataFrame(date_list, time_columns)
+    
+    time_df = time_df.withColumn("date", F.from_unixtime("timestamp").cast(DateType()))
     
     # Spark 3.0+ for some reason removed the ability to parse weekdays into integers, it only supports strings now.
     # Don't ask me why, I can't see how that's a good restriction to add.
@@ -32,13 +41,27 @@ def create_time_dimension_table(spark):
         .withColumn('week', weekofyear('date')) \
         .withColumn('month', month('date')) \
         .withColumn('year', year('date')) \
-        .withColumn('weekday', date_format(col("date"), "u"))
+        .withColumn('weekday', date_format(col("date"), "u").cast(IntegerType()))
     
-    # Even though the original pandas dataframe used datetime, the spark dataframe reverted to timestamp.
-    # I really don't need the time-of-day parts, so let's force this back to datetime.
-    time_df = time_df.withColumn('date', time_df['date'].cast(DateType()))
+    time_df = time_df.drop('date')
     
     time_df.write.partitionBy('month').mode('overwrite').parquet(output_path + "time.parquet")
+    
+    return time_df
+    
+
+def load_time_dimension_table(spark):
+    '''
+    Load time dimension table from parquet
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
+    
+    Returns:
+    time_df (Dataframe): Spark dataframe representing the time dimension table
+    '''
+    
+    time_df = spark.read.parquet(output_path + "time.parquet")
     
     return time_df
 
@@ -49,6 +72,9 @@ def load_covid_case_data(spark):
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    
+    Returns:
+    covid_cases_df (Dataframe): Spark dataframe with the Covid-19 case data
     '''
     
     covid_cases_df = spark.read.load("data/covid_cases_US.csv", format="csv", sep=",", inferSchema="true", header="true")
@@ -62,6 +88,9 @@ def load_covid_deaths_data(spark):
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    
+    Returns:
+    covid_deaths_df (Dataframe): Spark dataframe with the Covid-19 death data
     '''
     
     covid_deaths_df = spark.read.load("data/covid_deaths_US.csv", format="csv", sep=",", inferSchema="true", header="true")
@@ -75,6 +104,9 @@ def load_health_data(spark):
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    
+    Returns:
+    health_df (Dataframe): Spark dataframe with the US county health data
     '''
     
     health_df = spark.read.load("data/health_data.csv", format="csv", sep=",", inferSchema="true", header="true")
@@ -88,6 +120,9 @@ def load_area_data(spark):
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    
+    Returns:
+    area_df (Dataframe): Spark dataframe with the US county area data
     '''
     
     area_df = spark.read.load("data/us_county_area.csv", format="csv", sep=",", inferSchema="true", header="true")
@@ -101,6 +136,12 @@ def load_weather_data(spark):
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    
+    Returns:
+    tMin_df (Dataframe): Spark dataframe with minimum temperature data per US county
+    tMax_df (Dataframe): Spark dataframe with maximum temperature data per US county
+    cloud_df (Dataframe): Spark dataframe with cloud cover data per US county
+    wind_df (Dataframe): Spark dataframe with wind speeds data per US county
     '''
     
     tMin_df = spark.read.load("data/tMin_US.csv", format="csv", sep=",", inferSchema="true", header="true")
@@ -117,6 +158,9 @@ def create_county_dimension_table(spark, covid_cases_df, health_df):
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    
+    Returns:
+    county_dim_df (Dataframe): Spark dataframe representing the county dimension table
     '''
     
     county_columns = ["fips", "county_name", "state", "latitude", "longitude"]
@@ -142,6 +186,9 @@ def load_county_dimension_table(spark):
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    
+    Returns:
+    county_dim_df (Dataframe): Spark dataframe representing the county dimension table
     '''
     
     county_dim_df = spark.read.parquet(output_path + "county_dim.parquet")
@@ -157,6 +204,9 @@ def create_state_dimension_table(spark, health_df, county_dim_df):
     spark (SparkContext): Spark context to run operations on
     health_df (DataFrame): Health data from a cleaning step or loaded from disc, provides all necessary data apart from area
     county_dim_df (DataFrame): County dimension data from a previous ETL step or loaded from disc, used to extract and accumulate area data
+    
+    Returns:
+    state_dim_df (Dataframe): Spark dataframe representing the state dimension table
     '''
     
     state_dim_df = health_df.where((health_df['fips'] != 0) & (health_df['fips'] % 1000 == 0)).drop('fips').withColumnRenamed('county_name', 'state_name')
@@ -180,6 +230,9 @@ def load_state_dimension_table(spark):
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    
+    Returns:
+    state_dim_df (Dataframe): Spark dataframe representing the state dimension table
     '''
     
     state_dim_df = spark.read.parquet(output_path + "state_dim.parquet")
@@ -189,7 +242,7 @@ def load_state_dimension_table(spark):
 
 def create_covid_time_series(spark, input_df, column_offset, total_column_name, delta_column_name, include_state):
     '''
-    Comment
+    Create and return a time series of Covid-19 data by county
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
@@ -197,6 +250,9 @@ def create_covid_time_series(spark, input_df, column_offset, total_column_name, 
     total_column_name (String): Column name for the total value (case or death) in each row
     delta_column_name (String): Column name for the delta value (case or death) in each row compared to the previous day
     include_state (Boolean): Do we want to include the state column in this dataframe?
+    
+    Returns:
+    output_df (Dataframe): Spark dataframe containing a time series of Covid-19 data over time by county
     '''
     
     unix_time = pd.Timestamp("1970-01-01")
@@ -267,12 +323,15 @@ def create_covid_time_series(spark, input_df, column_offset, total_column_name, 
 
 def transform_weather_data(spark, input_df, column_name):
     '''
-    Comment
+    Create and return a time series of weather data by county
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
     input_df (DataFrame): Source weather data, either from a previous cleaning step, or loaded from disc
     column_name (String): Column name under which the weather data will appear
+    
+    Returns:
+    output_df (Dataframe): Spark dataframe containing a time series of weather data over time by county
     '''
     
     unix_time = pd.Timestamp("1970-01-01")
@@ -308,6 +367,9 @@ def create_county_facts_table(spark, covid_cases_df, covid_deaths_df):
     spark (SparkContext): Spark context to run operations on
     covid_cases_df (DataFrame): Covid-19 case data
     covid_deaths_df (DataFrame): Covid-19 death data
+    
+    Returns:
+    facts_df (Dataframe): Spark dataframe representing the county facts table
     '''
     
     cases_df = create_covid_time_series(spark, covid_cases_df, 5, "covid_case_total", "covid_case_delta", True)
@@ -329,7 +391,7 @@ def create_county_facts_table(spark, covid_cases_df, covid_deaths_df):
     transformed_wind_df = transform_weather_data(wind_df, "wind")
     facts_df = facts_df.join(transformed_wind_df, on=["fips", "timestamp"], how="left")
     
-    county_facts_df.write.partitionBy('fips').mode('overwrite').parquet(output_path + "county_facts.parquet")
+    facts_df.write.partitionBy('fips').mode('append').parquet(output_path + "county_facts.parquet")
     
     return facts_df
     
@@ -340,6 +402,9 @@ def load_county_facts_table(spark):
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    
+    Returns:
+    county_facts_df (Dataframe): Spark dataframe representing the county facts table
     '''
     
     county_facts_df = spark.read.option("basePath", output_path + "county_facts.parquet").parquet(output_path + "county_facts.parquet")
@@ -349,11 +414,14 @@ def load_county_facts_table(spark):
 
 def create_state_facts_table(spark, county_facts_df):
     '''
-    Comment
+    Create the state facts table based on aggregations over the county facts table
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
     county_facts_df (DataFrame): County facts table that was created in a previous step (or loaded from disc)
+    
+    Returns:
+    state_facts_df (Dataframe): Spark dataframe representing the state facts table
     '''
     
     county_facts_df_reduced = county_facts_df[['state', 'timestamp', 'covid_case_total', 'covid_case_delta', 'covid_death_total', 'covid_death_delta']]
@@ -364,7 +432,7 @@ def create_state_facts_table(spark, county_facts_df):
         F.sum('covid_death_total').alias('covid_death_total'), \
         F.sum('covid_death_delta').alias('covid_death_delta'))
     
-    state_facts_df.write.partitionBy('state').mode('overwrite').parquet(output_path + "state_facts.parquet")
+    state_facts_df.write.partitionBy('state').mode('append').parquet(output_path + "state_facts.parquet")
     
 
 def load_state_facts_table(spark):
@@ -373,20 +441,36 @@ def load_state_facts_table(spark):
 
     Parameters:
     spark (SparkContext): Spark context to run operations on
+    
+    Returns:
+    state_facts_df (Dataframe): Spark dataframe representing the state facts table
     '''
     
     state_facts_df = spark.read.option("basePath", output_path + "state_facts.parquet").parquet(output_path + "state_facts.parquet")
     
     return state_facts_df
 
-
-def main():
+def run_etl_pipeline(spark):
     '''
     Runs the ETL pipeline.
-    - 
-    '''
+    - Read in the Covid-19 data sets
+    - Read in the health data set
+    - Create the time dimension table
+    - Create the county dimension table
+    - Create the state dimension table
+    - Create the county facts table
+    - Create the state facts table
+
+    Parameters:
+    spark (SparkContext): Spark context to run operations on
     
-    spark = create_spark_session()
+    Returns:
+    time_df (Dataframe): Spark dataframe representing the time dimension table
+    county_dim_df (Dataframe): Spark dataframe representing the county dimension table
+    state_dim_df (Dataframe): Spark dataframe representing the state dimension table
+    county_facts_df (Dataframe): Spark dataframe representing the county facts table
+    state_facts_df (Dataframe): Spark dataframe representing the state facts table
+    '''
     
     covid_cases_df = load_covid_case_data(spark)
     covid_deaths_df = load_covid_deaths_data(spark)
@@ -402,7 +486,19 @@ def main():
     county_facts_df = create_county_facts_table(spark)
     
     state_facts_df = create_state_facts_table(spark)
+    
+    return time_dim_df, county_dim_df, state_dim_df, county_facts_df, state_facts_df
 
+
+def main():
+    '''
+    Creates the spark session, then runs the whole ETL pipeline
+    '''
+    
+    spark = create_spark_session()
+    
+    run_etl_pipeline(spark)
+    
 
 if __name__ == "__main__":
     main()
