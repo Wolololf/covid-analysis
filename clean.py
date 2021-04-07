@@ -9,6 +9,8 @@ def clean_covid_data(inputPath, outputPath):
     outputPath (string): Path to the covid data output file
     '''
     
+    print(f"Starting cleaning data at '{inputPath}'")
+    
     df = pd.read_csv(inputPath)
     
     # Select relevant columns
@@ -43,6 +45,8 @@ def clean_covid_data(inputPath, outputPath):
     df[numeric_columns] = df[numeric_columns].astype(int)
     
     df.to_csv(outputPath, index=False)
+    
+    print(f"Wrote cleaned data from '{inputPath}' to '{outputPath}'")
 
     
 def clean_health_data(inputPath, outputPath):
@@ -53,6 +57,8 @@ def clean_health_data(inputPath, outputPath):
     inputPath (string): Path to the health data input file
     outputPath (string): Path to the health data output file
     '''
+    
+    print(f"Starting cleaning data at '{inputPath}'")
     
     health_df = pd.read_csv(inputPath) # data/health_data.csv
     
@@ -91,6 +97,8 @@ def clean_area_data(inputPath, outputPath):
     county_area_df = pd.DataFrame(county_area_dict.items(), columns=["fips", "area"])
     
     county_area_df.to_csv(outputPath, index=False)
+    
+    print(f"Wrote cleaned data from '{inputPath}' to '{outputPath}'")
 
 
 def clean_weather_data(inputPath, outputPath):
@@ -101,6 +109,8 @@ def clean_weather_data(inputPath, outputPath):
     inputPath (string): Path to the weather data input file
     outputPath (string): Path to the weather data output file
     '''
+    
+    print(f"Starting cleaning data at '{inputPath}'")
     
     df = pd.read_csv(inputPath)
     
@@ -127,6 +137,8 @@ def clean_weather_data(inputPath, outputPath):
     df[numeric_columns] = df[numeric_columns].apply(pd.to_numeric)
     
     df.to_csv(outputPath, index=False)
+    
+    print(f"Wrote cleaned data from '{inputPath}' to '{outputPath}'")
 
     
 def clean_all_weather_data():
@@ -145,6 +157,8 @@ def main():
     Cleans all input data
     '''
     
+    print("Starting clean step")
+    
     clean_covid_data("raw_data/covid_cases_US.csv", "data/covid_cases_US.csv")
     clean_covid_data("raw_data/covid_deaths_US.csv", "data/covid_deaths_US.csv")
     
@@ -153,6 +167,8 @@ def main():
     clean_area_data("raw_data/us_county_area.json", "data/us_county_area.csv")
     
     clean_all_weather_data()
+    
+    print("Finished cleaning data")
 
 
 if __name__ == "__main__":

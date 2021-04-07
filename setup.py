@@ -14,7 +14,7 @@ def create_spark_session():
     Creates the spark session
     
     Returns:
-    Newly created spark session
+    spark (SparkContext): Spark context to run operations on
     """
 
     spark = SparkSession \
