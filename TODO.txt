@@ -12,3 +12,15 @@ Redshift: Stage data from S3 bucket to Redshift
 Stretch:
 - Election data for county dimension table
 - Mobility data over time, as part of county facts table (since it's a time series)
+
+Queries:
+Effect of bad weather on covid case rates
+"A harder question to answer is how much weather on any given day affects covid case rates a few days down the line.  
+Since the reporting won't be extremely accurate, we should limit ourselves to evaluating strings of consistently good/bad weather for a few days, and then look at the new case increase a week afterwards.
+
+First, we need to classify what makes a day "good" or "bad". I'd define a "good" day as having low chance of precipitation and low cloud cover, whereas a "bad" day is high on both. We could include temperature here as well, but we'd need to look at a rolling average to see how any given day compares; this presents a problem since rolling averages don't play well with the idea of having a period of good/bad days (they're subsequent days, so the last day in the sequence would need e.g. a higher temperature than the preceding days even though they were classed as "good" already).
+
+Next, we need to indentify sufficiently long sequences of days with similar weather.  
+Then we can determine the cases a week from each day, and track the delta.
+
+Finally, we can average the delta for good/bad weather days and see if we can find any difference.""

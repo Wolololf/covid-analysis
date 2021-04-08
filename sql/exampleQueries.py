@@ -91,12 +91,75 @@ class exampleQueries:
         ON fc.fips == dc.fips
         GROUP BY fc.fips
     )
-    SELECT pb.bucket, avg(mc.normalised_covid_cases) as average_normalised_cases
-        FROM fact_county fc
-        LEFT JOIN percent_buckets pb
-        ON fc.fips == pb.fips
+    SELECT pb.bucket, avg(mc.normalised_covid_cases) as average_normalised_cases, count(*) as count
+        FROM  percent_buckets pb
         LEFT JOIN max_cases mc
-        ON fc.fips == mc.fips
+        ON pb.fips == mc.fips
+        GROUP BY pb.bucket
+        ORDER BY pb.bucket DESC
+        LIMIT 10
+    """)
+    
+    county_normalised_cases_by_max_temperature_percentile = ("""
+    WITH hottest_days AS (
+        SELECT fc.fips, max(fc.max_temp) as max_temp
+        FROM fact_county fc
+        GROUP BY fc.fips
+    ),
+    percentiles AS (
+        SELECT hd.fips, PERCENT_RANK() OVER(
+            ORDER BY hd.max_temp ASC
+        ) AS percent_rank
+        FROM hottest_days hd
+        GROUP BY hd.fips, hd.max_temp
+    ),
+    percent_buckets AS (
+        SELECT p.fips, ROUND(p.percent_rank, 1) AS bucket
+        FROM percentiles p
+    ),
+    max_cases AS (
+        SELECT fc.fips, max(fc.covid_case_total / dc.population_density) as normalised_covid_cases
+        FROM fact_county fc
+        LEFT JOIN dim_county dc
+        ON fc.fips == dc.fips
+        GROUP BY fc.fips
+    )
+    SELECT pb.bucket, avg(mc.normalised_covid_cases) as average_normalised_cases, count(*) as count
+        FROM percent_buckets pb
+        LEFT JOIN max_cases mc
+        ON pb.fips == mc.fips
+        GROUP BY pb.bucket
+        ORDER BY pb.bucket DESC
+        LIMIT 10
+    """)
+    
+    county_normalised_cases_by_over_sixtyfives_percentile = ("""
+    WITH percentiles AS (
+        SELECT dc.fips, PERCENT_RANK() OVER(
+            ORDER BY dc.over_sixtyfives ASC
+        ) AS percent_rank
+        FROM dim_county dc
+    ),
+    percent_buckets AS (
+        SELECT p.fips, ROUND(p.percent_rank, 1) AS bucket
+        FROM percentiles p
+    ),
+    max_timestamps AS (
+        SELECT fc.fips, max(fc.timestamp) as max_timestamp
+        FROM fact_county fc
+        GROUP BY fc.fips
+    ),
+    ratio AS (
+        SELECT fc.fips, max(fc.covid_death_total / fc.covid_case_total) as death_per_case_ratio
+        FROM fact_county fc
+        LEFT JOIN max_timestamps mt
+        ON fc.fips == mt.fips
+        GROUP BY fc.fips
+    )
+    SELECT pb.bucket, avg(r.death_per_case_ratio) as death_per_case_ratio, count(*) as count
+        FROM percent_buckets pb
+        LEFT JOIN ratio r
+        ON pb.fips == r.fips
         GROUP BY pb.bucket
         ORDER BY pb.bucket DESC
         LIMIT 10
