@@ -67,7 +67,7 @@ def load_time_dimension_table(spark):
     
     print("Started loading time dimension table")
     
-    time_df = spark.read.parquet(output_path + "time.parquet")
+    time_df = spark.read.option("basePath", output_path + "time.parquet").parquet(output_path + "time.parquet")
     
     print("Finished loading time dimension table")
     
@@ -225,7 +225,7 @@ def load_county_dimension_table(spark):
     
     print("Started loading county dimension table")
     
-    county_dim_df = spark.read.parquet(output_path + "county_dim.parquet")
+    county_dim_df = spark.read.option("basePath", output_path + "county_dim.parquet").parquet(output_path + "county_dim.parquet")
     
     print("Finished loading county dimension table")
     
@@ -247,7 +247,7 @@ def create_state_dimension_table(spark, health_df, county_dim_df):
     
     print("Started creating state dimension table")
     
-    state_dim_df = health_df.where((health_df['fips'] != 0) & (health_df['fips'] % 1000 == 0)).drop('fips').withColumnRenamed('county_name', 'state_name')
+    state_dim_df = health_df.where((health_df['fips'] != 0) & (health_df['fips'] % 1000 == 0)).drop('fips').withColumnRenamed('county_name', 'state')
     
     state_area_df = county_dim_df.groupBy('state') \
         .agg(F.sum('area') \
@@ -277,7 +277,7 @@ def load_state_dimension_table(spark):
     
     print("Started loading state dimension table")
     
-    state_dim_df = spark.read.parquet(output_path + "state_dim.parquet")
+    state_dim_df = spark.read.option("basePath", output_path + "state_dim.parquet").parquet(output_path + "state_dim.parquet")
     
     print("Finished loading state dimension table")
     
